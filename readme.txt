@@ -11,4 +11,4 @@ Arquivos:
 - data.js: dados convertidos da planilha
 - manifest.webmanifest: configuração PWA
 - sw.js: cache/offline
-- icon-192.png e icon-512.png: ícones
+- icon-192.png, icon-512.png e favicon.png: ícones (logo Katia Quaresma)
