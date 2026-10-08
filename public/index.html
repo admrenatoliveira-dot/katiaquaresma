@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f766e"><meta name="description" content="Gestão Dekor Eventos">
+<link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon-192.png">
+<title>Dekor Eventos</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+body{background:#f5f7f8} .nav{scrollbar-width:none}.nav::-webkit-scrollbar{display:none}
+.card{background:white;border:1px solid #e5e7eb;border-radius:18px;box-shadow:0 3px 14px #00000008}
+.btn{border-radius:12px;padding:.7rem 1rem;font-weight:700}.active{background:#0f766e!important;color:#fff!important}
+.tablewrap{overflow:auto;border-radius:14px}.table{min-width:720px;width:100%;border-collapse:collapse}.table th{background:#f0fdfa;text-align:left;font-size:.78rem;color:#475569;padding:.7rem}.table td{padding:.7rem;border-top:1px solid #eef2f4;font-size:.86rem}
+input,select,textarea{border:1px solid #d1d5db;border-radius:12px;padding:.72rem;background:#fff;width:100%;outline:none} input:focus,select:focus,textarea:focus{border-color:#0f766e;box-shadow:0 0 0 3px #0f766e18}
+dialog{border-radius:18px;width:min(720px,94vw);max-height:92vh;padding:0}dialog::backdrop{background:#0f172a66}
+</style>
+</head>
+<body class="text-slate-800">
+<div class="max-w-6xl mx-auto min-h-screen">
+<header class="sticky top-0 z-20 bg-white/95 backdrop-blur border-b">
+<div class="px-4 py-3 flex items-center justify-between"><div><div class="text-xl font-black text-teal-700">Dekor Eventos</div><div class="text-xs text-slate-500">Gestão • PWA</div></div><button id="install" class="hidden btn bg-slate-900 text-white text-sm">Instalar</button></div>
+<nav class="nav px-3 pb-3 flex gap-2 overflow-x-auto">
+<button class="navbtn btn bg-slate-100 text-sm active" data-view="inicio">Início</button>
+<button class="navbtn btn bg-slate-100 text-sm" data-view="clientes">Clientes</button>
+<button class="navbtn btn bg-slate-100 text-sm" data-view="estoque">Estoque</button>
+<button class="navbtn btn bg-slate-100 text-sm" data-view="orcamentos">Orçamentos</button>
+<button class="navbtn btn bg-slate-100 text-sm" data-view="portfolio">Portfólio</button>
+<button class="navbtn btn bg-slate-100 text-sm" data-view="recibos">Recibos</button>
+</nav></header>
+<main id="app" class="p-4 pb-10"></main>
+<dialog id="cliDlg"></dialog>
+</div>
+<script src="data.js"></script>
+<script>
+const D=APP_DATA;
+const money=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+function layout(title,sub,body){return `<section><div class="mb-5"><h1 class="text-2xl font-black">${title}</h1><p class="text-sm text-slate-500">${sub}</p></div>${body}</section>`}
+function cards(arr){return `<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">${arr.map(x=>`<div class="card p-4"><div class="text-xs text-slate-500">${x[0]}</div><div class="text-xl font-black mt-1">${x[1]}</div></div>`).join('')}</div>`}
+function table(headers,rows){return `<div class="card tablewrap"><table class="table"><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`}
+function inicio(){
+ let stockValue=D.stock.reduce((a,x)=>a+Number(x.total||0),0), rep=D.stock.reduce((a,x)=>a+Number(x.repTotal||0),0), orc=D.budgets.reduce((a,x)=>a+Number(x.total||0),0);
+ return layout('Visão geral','Dados convertidos da planilha para uso no celular',
+ cards([['Clientes',(CLIENTES||D.clients).length],['Itens de estoque',D.stock.length],['Orçamentos',D.budgets.length],['Valor dos orçamentos',money(orc)]])+
+ `<div class="grid lg:grid-cols-2 gap-4"><div class="card p-5"><h2 class="font-black mb-3">Resumo financeiro</h2><div class="space-y-3 text-sm"><div class="flex justify-between"><span>Valor do estoque</span><b>${money(stockValue)}</b></div><div class="flex justify-between"><span>Valor de reposição</span><b>${money(rep)}</b></div><div class="flex justify-between"><span>Orçamentos registrados</span><b>${money(orc)}</b></div></div></div>
+ <div class="card p-5"><h2 class="font-black mb-3">Atalhos</h2><div class="grid grid-cols-2 gap-2"><button class="btn bg-teal-50 text-teal-800" onclick="go('clientes')">Clientes</button><button class="btn bg-teal-50 text-teal-800" onclick="go('estoque')">Pesquisar estoque</button><button class="btn bg-teal-50 text-teal-800" onclick="go('orcamentos')">Orçamentos</button><button class="btn bg-teal-50 text-teal-800" onclick="go('portfolio')">Portfólio</button></div></div></div>`);
+}
+let CLIENTES=null, CLI_ONLINE=false;
+const CLI_FIELDS=[['nome','Nome *','md:col-span-2'],['cpf','CPF/CNPJ'],['fone','Telefone'],['email','E-mail','md:col-span-2'],['endereco','Endereço','md:col-span-2'],['bairro','Bairro'],['cep','CEP'],['cidade','Cidade'],['uf','UF'],['localEvento','Local do evento','md:col-span-2'],['condicao','Condição de pagamento'],['vendedor','Vendedor']];
+const blank=v=>v===0||v==null||/^x+$/i.test(String(v))?'':v;
+let cliLoading;
+function loadClientes(){return cliLoading??=fetchClientes()}
+async function fetchClientes(){
+ try{
+  let r=await fetch('/api/clientes');if(!r.ok)throw 0;let list=await r.json();
+  if(!list.length&&D.clients.length){await fetch('/api/clientes/importar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(D.clients)});list=await (await fetch('/api/clientes')).json()}
+  CLIENTES=list;CLI_ONLINE=true;
+ }catch(e){CLIENTES=D.clients;CLI_ONLINE=false}
+}
+function clientes(){
+ return layout('Clientes','Cadastro, pesquisa e dados principais',
+ `<div class="card p-4 mb-4 flex flex-col sm:flex-row gap-2"><input id="q" placeholder="Pesquisar por nome, telefone, cidade ou vendedor..."><button id="novoCli" class="btn bg-teal-700 text-white whitespace-nowrap">+ Novo cliente</button></div><div id="cliStatus" class="text-xs text-slate-500 mb-2"></div><div id="results"><div class="card p-5 text-sm text-slate-500">Carregando clientes...</div></div>`);
+}
+function renderClientes(q=''){
+ if(!CLIENTES)return;
+ document.getElementById('cliStatus').textContent=CLI_ONLINE?`${CLIENTES.length} clientes cadastrados • toque em um cliente para editar`:'Sem conexão: exibindo dados da planilha (somente leitura)';
+ document.getElementById('novoCli').disabled=!CLI_ONLINE;document.getElementById('novoCli').classList.toggle('opacity-50',!CLI_ONLINE);
+ let a=CLIENTES.filter(x=>JSON.stringify(x).toLowerCase().includes(q.toLowerCase())).slice(0,200);
+ document.getElementById('results').innerHTML=a.length?table(['Cód.','Cliente','Cidade','Telefone','Condição'],a.map(x=>`<tr ${CLI_ONLINE?`class="cursor-pointer hover:bg-teal-50" onclick="editCliente(${x.id})"`:''}><td>${esc(x.codigo)}</td><td class="font-bold">${esc(x.nome)}</td><td>${esc(blank(x.cidade))}${blank(x.uf)?'/'+esc(x.uf):''}</td><td>${esc(blank(x.fone))}</td><td>${esc(blank(x.condicao))}</td></tr>`)):'<div class="card p-5">Nenhum cliente encontrado.</div>';
+}
+function editCliente(id){
+ let c=id?CLIENTES.find(x=>x.id===id):{condicao:'50%(CONTRATO)/50%(EVENTO)',uf:'PI',cidade:'TERESINA'};if(!c)return;
+ let dlg=document.getElementById('cliDlg');
+ dlg.innerHTML=`<form method="dialog" id="cliForm" class="p-5"><div class="flex items-center justify-between mb-4"><h2 class="text-xl font-black">${id?`Editar cliente #${esc(c.codigo)}`:'Novo cliente'}</h2><button type="button" class="text-2xl text-slate-400" onclick="cliDlg.close()" aria-label="Fechar">×</button></div>
+ <div class="grid md:grid-cols-2 gap-3">${CLI_FIELDS.map(([k,l,cls])=>`<label class="text-xs font-bold text-slate-600 ${cls||''}">${l}<input name="${k}" value="${esc(blank(c[k]))}" ${k==='nome'?'required':''} ${k==='uf'?'maxlength="2"':''} ${k==='email'?'type="email"':''} class="mt-1 font-normal text-sm"></label>`).join('')}
+ <label class="text-xs font-bold text-slate-600 md:col-span-2">Observações<textarea name="observacoes" rows="3" class="mt-1 font-normal text-sm">${esc(blank(c.observacoes))}</textarea></label></div>
+ <div id="cliErr" class="text-sm text-red-600 mt-3"></div>
+ <div class="flex flex-wrap gap-2 justify-end mt-4">${id?`<button type="button" id="delCli" class="btn bg-red-50 text-red-700 mr-auto">Excluir</button>`:''}<button type="button" class="btn bg-slate-100" onclick="cliDlg.close()">Cancelar</button><button type="submit" class="btn bg-teal-700 text-white">Salvar</button></div></form>`;
+ let f=document.getElementById('cliForm'),err=document.getElementById('cliErr');
+ f.onsubmit=async e=>{e.preventDefault();let btn=f.querySelector('[type=submit]');btn.disabled=true;err.textContent='';
+  try{let r=await fetch(id?`/api/clientes/${id}`:'/api/clientes',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.fromEntries(new FormData(f)))});let j=await r.json();if(!r.ok)throw new Error(j.error);
+   if(id)CLIENTES[CLIENTES.findIndex(x=>x.id===id)]=j;else CLIENTES.push(j);dlg.close();renderClientes(document.getElementById('q').value);
+  }catch(e){err.textContent=e.message||'Não foi possível salvar.';btn.disabled=false}};
+ if(id)document.getElementById('delCli').onclick=async()=>{if(!confirm(`Excluir o cliente "${c.nome}"?`))return;
+  let r=await fetch(`/api/clientes/${id}`,{method:'DELETE'});if(!r.ok){err.textContent='Não foi possível excluir.';return}
+  CLIENTES=CLIENTES.filter(x=>x.id!==id);dlg.close();renderClientes(document.getElementById('q').value)};
+ dlg.showModal();
+}
+function estoque(){
+ let grupos=[...new Set(D.stock.map(x=>x.grupo).filter(Boolean))].sort();
+ return layout('Estoque','Catálogo de produtos, serviços e taxas',
+ `<div class="grid md:grid-cols-3 gap-3 mb-4"><input id="q" placeholder="Pesquisar produto..."><select id="grupo"><option value="">Todos os grupos</option>${grupos.map(g=>`<option>${esc(g)}</option>`).join('')}</select><select id="ord"><option value="nome">Nome</option><option value="valor">Maior valor</option></select></div><div id="results"></div>`);
+}
+function renderEstoque(){let q=document.getElementById('q')?.value||'',g=document.getElementById('grupo')?.value||'',ord=document.getElementById('ord')?.value||'nome';let a=D.stock.filter(x=>(!g||x.grupo===g)&&JSON.stringify(x).toLowerCase().includes(q.toLowerCase()));a.sort((x,y)=>ord==='valor'?Number(y.total||0)-Number(x.total||0):String(x.produto).localeCompare(String(y.produto),'pt-BR'));a=a.slice(0,200);document.getElementById('results').innerHTML=table(['Cód.','Produto','Grupo','Qt.','Unitário','Total','Reposição'],a.map(x=>`<tr><td>${esc(x.codigo)}</td><td class="font-bold">${esc(x.produto)}</td><td>${esc(x.grupo)}</td><td>${esc(x.qt)}</td><td>${money(x.unit)}</td><td>${money(x.total)}</td><td>${money(x.repTotal)}</td></tr>`));}
+function orcamentos(){return layout('Orçamentos','Orçamentos encontrados nas abas da planilha',
+ `<div class="card p-4 mb-4"><input id="q" placeholder="Pesquisar cliente ou número do orçamento..."></div><div id="results"></div>`)}
+function renderOrc(){let q=document.getElementById('q')?.value||'';let a=D.budgets.filter(x=>JSON.stringify(x).toLowerCase().includes(q.toLowerCase()));document.getElementById('results').innerHTML=table(['Aba','Cliente','Código','Evento','Total'],a.map(x=>`<tr><td>${esc(x.aba)}</td><td class="font-bold">${esc(x.cliente)}</td><td>${esc(x.codigo)}</td><td>${x.evento?new Date(x.evento).toLocaleDateString('pt-BR'):''}</td><td class="font-bold">${money(x.total)}</td></tr>`));}
+function portfolio(){let a=D.portfolio;return layout('Portfólio','Itens consolidados por grupo',
+ `<div class="card p-4 mb-4"><input id="q" placeholder="Pesquisar item ou grupo..."></div><div id="results"></div>`)}
+function renderPortfolio(){let q=document.getElementById('q')?.value||'';let a=D.portfolio.filter(x=>JSON.stringify(x).toLowerCase().includes(q.toLowerCase())).slice(0,200);document.getElementById('results').innerHTML=table(['Grupo','Produto','Unid.','Qt.','Total','Reposição'],a.map(x=>`<tr><td>${esc(x.grupo)}</td><td class="font-bold">${esc(x.produto)}</td><td>${esc(x.unidade)}</td><td>${esc(x.qt)}</td><td>${money(x.total)}</td><td>${money(x.repTotal)}</td></tr>`));}
+function recibos(){return layout('Recibos','Registros de recibos disponíveis',
+ table(['Aba','Número','Data','Valor'],D.receipts.map(x=>`<tr><td>${esc(x.aba)}</td><td class="font-bold">${esc(x.numero)}</td><td>${x.data?new Date(x.data).toLocaleDateString('pt-BR'):''}</td><td>${money(x.valor)}</td></tr>`)))}
+const views={inicio,clientes,estoque,orcamentos,portfolio,recibos};
+function go(v){document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));document.getElementById('app').innerHTML=views[v]();if(v==='clientes'){q.oninput=()=>renderClientes(q.value);novoCli.onclick=()=>editCliente(null);if(CLIENTES)renderClientes();else loadClientes().then(()=>{if(document.querySelector('.navbtn.active')?.dataset.view==='clientes')renderClientes(q.value)})}if(v==='estoque'){renderEstoque();['q','grupo','ord'].forEach(id=>document.getElementById(id).oninput=renderEstoque)}if(v==='orcamentos'){renderOrc();q.oninput=()=>renderOrc()}if(v==='portfolio'){renderPortfolio();q.oninput=()=>renderPortfolio()}window.scrollTo(0,0)}
+document.querySelectorAll('.navbtn').forEach(b=>b.onclick=()=>go(b.dataset.view));go('inicio');loadClientes().then(()=>{if(document.querySelector('.navbtn.active')?.dataset.view==='inicio')go('inicio')});
+let deferredPrompt;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;document.getElementById('install').classList.remove('hidden')});document.getElementById('install').onclick=async()=>{if(deferredPrompt){deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;document.getElementById('install').classList.add('hidden')}};
+if('serviceWorker' in navigator) window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js'));
+</script></body></html>
